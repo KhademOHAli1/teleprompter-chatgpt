@@ -20,6 +20,12 @@ Version 0.1.0. Local environment: macOS, Bun 1.4.2, TypeScript 7.0.2.
   and return to editing. Markup-like input was displayed literally rather
   than creating HTML elements.
 
+## Hosted GitHub check
+
+The [initial GitHub Actions run](https://github.com/KhademOHAli1/teleprompter-chatgpt/actions/runs/37688385232)
+passed on Ubuntu 24.04. It performed a frozen Bun install, TypeScript checking,
+frontend build, all 37 tests and source packaging.
+
 OpenAI token tests use synthetic responses, not a real paid API account.
 Voice lifecycle tests do not replace real microphone recordings.
 
@@ -32,7 +38,6 @@ Voice lifecycle tests do not replace real microphone recordings.
   microphone permissions in those hosts.
 - Public HTTPS deployment, OAuth/multi-user quotas where needed, published
   privacy information and directory submission/review.
-- Hosted GitHub Actions and a non-macOS runtime.
 
 The source package is suitable for review and local development.
 These checks do not certify word accuracy, a latency target, compatibility

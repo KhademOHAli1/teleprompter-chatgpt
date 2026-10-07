@@ -8,3 +8,5 @@ dist/
 *.zip
 *.sha256
 coverage/
+__pycache__/
+*.pyc
