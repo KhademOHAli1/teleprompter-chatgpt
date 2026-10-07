@@ -17,11 +17,11 @@ Auto-Scroll. Script text is rendered through DOM text nodes. It never becomes
 HTML markup. Tool results only replace the draft when they carry draft
 metadata; a voice-session response cannot overwrite the current script.
 
-**src/core.ts** segments German sentences with Intl.Segmenter and excludes
+**src/core.ts** segments sentences and words in the script locale with Intl.Segmenter and excludes
 bracketed cues from spoken tokens. A bounded local sequence alignment follows
 up to 32 heard tokens against nearby script words. Growing ASR revisions
 share an utterance anchor, progress is monotonic, and far jumps require
-several exact matches. German numbers, diacritics and compounds are normalized.
+several exact matches. English, German, French and Spanish numbers and Latin diacritics are normalized; joined/split words are handled across locales.
 The tracker stores at most 80 utterance anchors.
 
 **src/voice.ts** feature-detects browser recognition and microphone permission.
@@ -38,3 +38,8 @@ multi-user deployment needs additional authentication and operating controls.
 **scripts/build.ts** bundles dependencies and UI into one HTML resource.
 There are no external frontend assets. The preview bridge is a separate bundle.
 The Bun lockfile fixes transitive dependency versions.
+
+## Locale handling
+
+See [localization](LOCALIZATION.md) for platform language negotiation, separate
+speech-language selection, multilingual tokenization and provider limits.

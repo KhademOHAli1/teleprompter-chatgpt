@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { TurnGate } from "./core";
+import { canonicalLocale, systemLocale, t } from "./i18n";
 export type Provider = "browser" | "openai";
 type RecognitionResult = { isFinal: boolean; [index: number]: { transcript: string } };
 interface Recognition {
@@ -32,18 +33,20 @@ export class VoiceSession {
   private raf = 0;
   private limit?: ReturnType<typeof setTimeout>;
   private active = false;
+  private locale = systemLocale();
   constructor(private callbacks: VoiceCallbacks) {}
-  async start(provider: Provider, getToken: () => Promise<Token>) {
+  async start(provider: Provider, getToken: () => Promise<Token>, locale = systemLocale()) {
     this.stop();
+    this.locale = canonicalLocale(locale);
     const generation = this.generation;
     const policy = (document as unknown as { permissionsPolicy?: { allowsFeature(feature: string): boolean } }).permissionsPolicy;
-    if (policy && !policy.allowsFeature("microphone")) throw new Error("Dieser Host erlaubt der App keinen Mikrofonzugriff. Nutze Auto-Scroll oder die native Mac-App.");
-    if (!navigator.mediaDevices?.getUserMedia) throw new Error("Mikrofonzugriff ist hier nicht verfügbar. Nutze Auto-Scroll.");
-    if (provider === "browser" && !speechClass()) throw new Error("Dieser Browser bietet keine Spracherkennung. Wähle OpenAI oder Auto-Scroll.");
+    if (policy && !policy.allowsFeature("microphone")) throw new Error(t("This host does not allow microphone access. Use Auto-Scroll or the native Mac app."));
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error(t("Microphone access is unavailable here. Use Auto-Scroll."));
+    if (provider === "browser" && !speechClass()) throw new Error(t("This browser has no speech recognition. Choose OpenAI or Auto-Scroll."));
     const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false } });
     if (generation !== this.generation) { stream.getTracks().forEach(t => t.stop()); return; }
     this.stream = stream;
-    stream.getAudioTracks()[0]!.onended = () => this.fail("Das Mikrofon wurde getrennt.");
+    stream.getAudioTracks()[0]!.onended = () => this.fail(t("The microphone was disconnected."));
     try {
       this.context = new AudioContext();
       await this.context.resume();
@@ -71,7 +74,7 @@ export class VoiceSession {
     try {
       if (provider === "browser") this.startBrowser(generation);
       else await this.startOpenAI(generation, stream, getToken);
-      if (generation === this.generation) this.limit = setTimeout(() => this.fail("Die Sprachsitzung wurde nach 30 Minuten beendet. Du kannst erneut starten."), 30 * 60_000);
+      if (generation === this.generation) this.limit = setTimeout(() => this.fail(t("The voice session ended after 30 minutes. You can restart.")), 30 * 60_000);
     } catch (error) { if (generation === this.generation) this.stop(); throw error; }
   }
   private startBrowser(generation: number) {
@@ -81,7 +84,7 @@ export class VoiceSession {
       const Recognition = speechClass()!;
       const recognition = new Recognition();
       this.recognition = recognition;
-      recognition.lang = "de-DE"; recognition.continuous = true; recognition.interimResults = true;
+      recognition.lang = this.locale; recognition.continuous = true; recognition.interimResults = true;
       const prefix = "browser-" + generation + "-" + (++session) + "-";
       recognition.onresult = event => {
         if (!this.active || generation !== this.generation) return;
@@ -89,13 +92,13 @@ export class VoiceSession {
       };
       recognition.onerror = event => {
         if (!this.active || generation !== this.generation || ["no-speech", "aborted"].includes(event.error)) return;
-        this.fail(event.error === "not-allowed" || event.error === "service-not-allowed" ? "Spracherkennung wurde nicht erlaubt. Nutze Auto-Scroll." : "Browser-Spracherkennung unterbrochen (" + event.error + "). Bitte erneut starten.");
+        this.fail(event.error === "not-allowed" || event.error === "service-not-allowed" ? t("Speech recognition was denied. Use Auto-Scroll.") : t("Browser speech interrupted ({0}). Restart.", event.error));
       };
       recognition.onend = () => {
         if (!this.active || generation !== this.generation) return;
         const now = performance.now();
         if (now - restartWindow > 10_000) { restarts = 0; restartWindow = now; }
-        if (++restarts > 3) { this.fail("Die Browser-Spracherkennung beendet sich wiederholt. Wähle OpenAI oder Auto-Scroll."); return; }
+        if (++restarts > 3) { this.fail(t("Browser recognition keeps stopping. Choose OpenAI or Auto-Scroll.")); return; }
         setTimeout(start, 200);
       };
       recognition.start();
@@ -105,7 +108,7 @@ export class VoiceSession {
   private async startOpenAI(generation: number, stream: MediaStream, getToken: () => Promise<Token>) {
     const token = await getToken();
     if (generation !== this.generation) return;
-    if (token.expiresAt * 1000 <= Date.now()) throw new Error("Die Sprachsitzung ist abgelaufen. Bitte erneut starten.");
+    if (token.expiresAt * 1000 <= Date.now()) throw new Error(t("The voice session expired. Restart."));
     const pc = new RTCPeerConnection(); this.pc = pc;
     stream.getAudioTracks().forEach(track => pc.addTrack(track, stream));
     const dc = pc.createDataChannel("oai-events"); this.dc = dc;
@@ -114,7 +117,7 @@ export class VoiceSession {
       if (generation !== this.generation) return;
       try {
         const data = JSON.parse(String(event.data)) as { type: string; item_id?: string; delta?: string; transcript?: string };
-        if (data.type === "error" || data.type === "conversation.item.input_audio_transcription.failed") { this.fail("OpenAI hat die Sprachsitzung unterbrochen. Bitte erneut starten."); return; }
+        if (data.type === "error" || data.type === "conversation.item.input_audio_transcription.failed") { this.fail(t("OpenAI interrupted the voice session. Restart.")); return; }
         if (!data.item_id) return;
         if (data.type === "conversation.item.input_audio_transcription.delta") {
           const text = (transcripts.get(data.item_id) || "") + (data.delta || "");
@@ -129,17 +132,17 @@ export class VoiceSession {
         }
       } catch { /* Ignore malformed transport events; never render them as HTML. */ }
     };
-    pc.onconnectionstatechange = () => { if (generation === this.generation && ["failed", "disconnected"].includes(pc.connectionState)) this.fail("Die Sprachverbindung wurde unterbrochen. Bitte erneut starten."); };
+    pc.onconnectionstatechange = () => { if (generation === this.generation && ["failed", "disconnected"].includes(pc.connectionState)) this.fail(t("The voice connection was interrupted. Restart.")); };
     this.abort = new AbortController();
     const connected = new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error("OpenAI-Verbindung dauert zu lange. Bitte erneut starten.")), 15_000);
+      const timer = setTimeout(() => reject(new Error(t("OpenAI connection timed out. Restart."))), 15_000);
       dc.onopen = () => { clearTimeout(timer); resolve(); };
       dc.onclose = () => {
         clearTimeout(timer);
-        if (this.active && generation === this.generation) this.fail("Die Sprachverbindung wurde geschlossen. Bitte erneut starten.");
-        reject(new Error("Die Sprachverbindung wurde geschlossen."));
+        if (this.active && generation === this.generation) this.fail(t("The voice connection closed. Restart."));
+        reject(new Error(t("The voice connection closed.")));
       };
-      this.abort!.signal.addEventListener("abort", () => { clearTimeout(timer); reject(new Error("Start abgebrochen.")); }, { once: true });
+      this.abort!.signal.addEventListener("abort", () => { clearTimeout(timer); reject(new Error(t("Start cancelled."))); }, { once: true });
     });
     // Attach a rejection handler immediately while the SDP request is in flight.
     void connected.catch(() => {});
@@ -149,7 +152,7 @@ export class VoiceSession {
       method: "POST", headers: { Authorization: "Bearer " + token.value, "Content-Type": "application/sdp" },
       body: offer.sdp, signal: AbortSignal.any([this.abort.signal, AbortSignal.timeout(15_000)]),
     });
-    if (!response.ok) throw new Error("OpenAI-Verbindung fehlgeschlagen (HTTP " + response.status + ").");
+    if (!response.ok) throw new Error(t("OpenAI connection failed (HTTP {0}).", response.status));
     if (generation !== this.generation) return;
     await pc.setRemoteDescription({ type: "answer", sdp: await response.text() });
     await connected;

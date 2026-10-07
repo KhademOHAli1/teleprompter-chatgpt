@@ -1,45 +1,39 @@
 // SPDX-License-Identifier: MIT
 export const MAX_TEXT = 50_000;
-export const DEMO = "[Ruhig in die Kamera schauen.]\nWillkommen zu unserem kurzen Beispiel. Dieser Teleprompter folgt den gesprochenen Wörtern. Du kannst langsam lesen, eine Pause machen und danach weiterreden. Der Text bleibt in einer schmalen Spalte in der Mitte. So bleibt dein Blick nah an der Kamera. Viel Erfolg bei deiner Aufnahme!";
-
-const units = ["null", "eins", "zwei", "drei", "vier", "fünf", "sechs", "sieben", "acht", "neun"];
-function germanNumber(n: number): string {
-  if (n < 10) return units[n]!;
-  if (n < 20) return ["zehn", "elf", "zwölf", "dreizehn", "vierzehn", "fünfzehn", "sechzehn", "siebzehn", "achtzehn", "neunzehn"][n - 10]!;
-  if (n < 100) {
-    const tens = ["", "", "zwanzig", "dreißig", "vierzig", "fünfzig", "sechzig", "siebzig", "achtzig", "neunzig"][Math.floor(n / 10)]!;
-    return (n % 10 ? (n % 10 === 1 ? "ein" : units[n % 10]) + "und" : "") + tens;
-  }
-  const base = n < 1000 ? 100 : 1000;
-  const head = Math.floor(n / base);
-  return (head === 1 ? "ein" : germanNumber(head)) + (base === 100 ? "hundert" : "tausend") + (n % base ? germanNumber(n % base) : "");
+import { canonicalLocale, systemLocale, t } from "./i18n";
+import { spellNumber } from "./numbers";
+export function normalize(word: string, locale = systemLocale()): string {
+  locale = canonicalLocale(locale);
+  let value = word.toLocaleLowerCase(locale);
+  if (/^\d+$/.test(value) && +value < 1_000_000) value = spellNumber(+value, new Intl.Locale(locale).language);
+  value = value.replaceAll("ß", "ss").normalize("NFC");
+  if (/\p{Script=Latin}/u.test(value)) value = value.normalize("NFD").replace(/\p{M}/gu, "");
+  return value.replace(/[^\p{L}\p{N}\p{M}]/gu, "");
 }
-
-export function normalize(word: string): string {
-  let value = word.toLocaleLowerCase("de");
-  if (/^\d+$/.test(value) && +value < 1_000_000) value = germanNumber(+value);
-  return value.replaceAll("ß", "ss").normalize("NFD").replace(/\p{M}/gu, "").replace(/[^\p{L}\p{N}]/gu, "");
+function wordSegments(text: string, locale: string) {
+  return [...new Intl.Segmenter(canonicalLocale(locale), { granularity: "word" }).segment(text)].filter(segment => segment.isWordLike);
 }
-export function tokens(text: string): string[] {
-  return [...text.matchAll(/[\p{L}\p{N}]+(?:[’'][\p{L}]+)?/gu)].map(m => normalize(m[0]));
+export function tokens(text: string, locale = systemLocale()): string[] {
+  return wordSegments(text, locale).map(segment => normalize(segment.segment, locale)).filter(Boolean);
 }
 export interface Word { text: string; normalized: string; start: number; end: number; sentence: number }
-export interface Script { text: string; words: Word[]; sentenceStarts: number[] }
-export function parseScript(text: string): Script {
+export interface Script { text: string; locale: string; words: Word[]; sentenceStarts: number[] }
+export function parseScript(text: string, locale = systemLocale()): Script {
+  locale = canonicalLocale(locale);
   const words: Word[] = [], sentenceStarts: number[] = [];
   const spoken = text.replace(/\[[^\]]*\]/g, cue => " ".repeat(cue.length));
-  const segments = new Intl.Segmenter("de", { granularity: "sentence" }).segment(spoken);
+  const segments = new Intl.Segmenter(locale, { granularity: "sentence" }).segment(spoken);
   for (const segment of segments) {
-    const matches = [...segment.segment.matchAll(/[\p{L}\p{N}]+(?:[’'][\p{L}]+)?/gu)];
+    const matches = wordSegments(segment.segment, locale);
     if (!matches.length) continue;
     const sentence = sentenceStarts.length;
     sentenceStarts.push(words.length);
     for (const match of matches) {
-      const start = segment.index + match.index!;
-      words.push({ text: text.slice(start, start + match[0].length), normalized: normalize(match[0]), start, end: start + match[0].length, sentence });
+      const start = segment.index + match.index;
+      words.push({ text: text.slice(start, start + match.segment.length), normalized: normalize(match.segment, locale), start, end: start + match.segment.length, sentence });
     }
   }
-  return { text, words, sentenceStarts };
+  return { text, locale, words, sentenceStarts };
 }
 export function similarity(a: string, b: string): number {
   if (a === b) return 1;
@@ -68,7 +62,7 @@ export class WordTracker {
     this.utterances.clear();
   }
   consume(transcript: string, id: string): number | null {
-    const all = tokens(transcript);
+    const all = tokens(transcript, this.script.locale);
     if (!all.length || !this.script.words.length) { this.confidence = 0; return null; }
     if (!this.utterances.has(id)) {
       this.utterances.set(id, { anchor: this.cursor + 1, last: "" });
@@ -82,7 +76,10 @@ export class WordTracker {
     const expected = Math.min(this.script.words.length - 1, utterance.anchor + all.length - 1);
     const start = Math.max(0, Math.min(this.cursor - 18, expected - heard.length - 12));
     const end = Math.min(this.script.words.length, Math.max(this.cursor + 72, expected + 32));
-    const reference = this.script.words.slice(start, end).map(w => w.normalized);
+    const referenceWords = this.script.words.slice(start, end);
+    const reference = referenceWords.map(w => w.normalized);
+    const numerals = referenceWords.map(w => /^\p{N}+$/u.test(w.text));
+    const english = new Intl.Locale(this.script.locale).language === "en";
     const n = heard.length, m = reference.length;
     const table = Array.from({ length: n + 1 }, () => Array.from({ length: m + 1 }, emptyCell));
     for (let i = 1; i <= n; i++) for (let j = 1; j <= m; j++) {
@@ -97,17 +94,21 @@ export class WordTracker {
       const choices = [emptyCell(), diagonal,
         { ...table[i - 1]![j]!, score: table[i - 1]![j]!.score - 1.2 },
         { ...table[i]![j - 1]!, score: table[i]![j - 1]!.score - 1.7 }];
-      if (i >= 2 && heard[i - 2]! + heard[i - 1]! === reference[j - 1]) {
-        const c = { ...table[i - 2]![j - 1]! };
-        c.score += 5; c.matches += 2; c.exact += 2;
-        if (c.start < 0) c.start = j - 1;
-        c.lastHeard = i - 1; c.lastScript = j - 1; choices.push(c);
+      for (let length=2; length<=Math.min(8,i); length++) {
+        const span=heard.slice(i-length,i), numeral=numerals[j-1];
+        const englishNumber=numeral && english && span.filter(word => word!=="and").join("")===reference[j-1];
+        if (span.join("")!==reference[j-1] && !englishNumber) continue;
+        const c={...table[i-length]![j-1]!};
+        c.score+=length*3-1; c.matches+=length; c.exact+=length;
+        if (c.start<0) c.start=j-1;
+        c.lastHeard=i-1; c.lastScript=j-1; choices.push(c);
       }
-      if (j >= 2 && reference[j - 2]! + reference[j - 1]! === heard[i - 1]) {
-        const c = { ...table[i - 1]![j - 2]! };
-        c.score += 4; c.matches++; c.exact++;
-        if (c.start < 0) c.start = j - 2;
-        c.lastHeard = i - 1; c.lastScript = j - 1; choices.push(c);
+      for (let length=2; length<=Math.min(8,j); length++) {
+        if (reference.slice(j-length,j).join("")!==heard[i-1]) continue;
+        const c={...table[i-1]![j-length]!};
+        c.score+=length+2; c.matches++; c.exact++;
+        if(c.start<0)c.start=j-length;
+        c.lastHeard=i-1;c.lastScript=j-1;choices.push(c);
       }
       table[i]![j] = choices.reduce((a, b) => b.score > a.score ? b : a);
     }
@@ -131,7 +132,7 @@ export function meterState(rms: number, peak: number, match: number, recentSpeec
   const db = Math.max(-70, 20 * Math.log10(Math.max(0.00001, rms)));
   const position = Math.max(0, Math.min(100, (db + 55) / 55 * 100));
   const level = !recentSpeech ? "neutral" : peak >= 0.98 || db > -8 ? "red" : db < -40 ? "orange" : db < -34 || db > -12 ? "yellow" : "green";
-  const label = !recentSpeech ? "Warte auf Sprache" : level === "red" ? "Zu laut" : level === "orange" ? "Zu leise" : level === "yellow" ? "Pegel anpassen" : "Pegel gut";
+  const label = t(!recentSpeech ? "Waiting for speech" : level === "red" ? "Too loud" : level === "orange" ? "Too quiet" : level === "yellow" ? "Adjust level" : "Level good");
   return { db, position, level, label, matched: recentSpeech && match >= 0.65 };
 }
 

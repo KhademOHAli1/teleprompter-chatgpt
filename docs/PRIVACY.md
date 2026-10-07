@@ -19,7 +19,7 @@ logs, authentication and privacy policy before inviting users.
 - Optional OpenAI mode sends microphone audio directly to OpenAI over
   WebRTC. The MCP server requests an ephemeral credential using its own
   permanent API key. The credential is hidden from model-visible content.
-- OpenAI receives the audio and German transcription settings. This version
+- OpenAI receives the audio and selected-language transcription settings. This version
   does not send the script as a transcription prompt. Transcripts are held
   in bounded in-memory maps for alignment and are not returned to the chat.
 - The server does not log script, audio, transcript, token or API-key values.

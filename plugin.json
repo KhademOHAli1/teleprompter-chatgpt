@@ -1,20 +1,29 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "teleprompter",
-  "version": "0.1.0",
-  "description": "Read a German script on camera with a centered teleprompter and optional voice synchronization.",
+  "version": "0.2.0",
+  "description": "Read scripts in your language on camera with a centered teleprompter and optional voice synchronization.",
   "license": "MIT",
-  "keywords": ["teleprompter", "german", "mcp-apps"],
+  "keywords": [
+    "teleprompter",
+    "multilingual",
+    "mcp-apps"
+  ],
   "extensions": {
     "com.openai": {
       "interface": {
         "displayName": "Teleprompter",
-        "shortDescription": "Dein Text. Dein Tempo.",
-        "longDescription": "Open your German script in a centered reader. Follow spoken words, control the reading pace, and monitor microphone level.",
+        "shortDescription": "Your text. Your pace.",
+        "longDescription": "Open your script in its original language in a centered reader. Follow spoken words, control the reading pace, and monitor microphone level.",
         "developerName": "Teleprompter contributors",
         "category": "Productivity",
-        "capabilities": ["Read", "Write"],
-        "defaultPrompt": ["Öffne den Teleprompter, damit ich meinen Text vorlesen kann."],
+        "capabilities": [
+          "Read",
+          "Write"
+        ],
+        "defaultPrompt": [
+          "Open the teleprompter so I can read my script."
+        ],
         "brandColor": "#C9E58B"
       }
     }

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 import { describe, expect, test } from "bun:test";
-import { normalize, parseScript, WordTracker, meterState, TurnGate } from "../src/core";
+import { normalize as normalizeInLocale, parseScript as parseScriptInLocale, WordTracker, meterState, TurnGate } from "../src/core";
+
+const normalize = (word: string) => normalizeInLocale(word, "de-DE");
+const parseScript = (text: string) => parseScriptInLocale(text, "de-DE");
 
 describe("German scripts", () => {
   test("empty and direction-only scripts have no spoken words", () => {

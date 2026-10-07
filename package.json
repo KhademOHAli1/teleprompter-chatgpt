@@ -1,11 +1,13 @@
 {
   "name": "teleprompter-chatgpt",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "license": "MIT",
   "packageManager": "bun@1.4.2",
-  "engines": { "bun": ">=1.4.2" },
+  "engines": {
+    "bun": ">=1.4.2"
+  },
   "scripts": {
     "build": "bun scripts/build.ts",
     "start": "bun src/server.ts",

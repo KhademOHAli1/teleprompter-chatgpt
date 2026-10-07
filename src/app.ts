@@ -1,38 +1,42 @@
 // SPDX-License-Identifier: MIT
 import { App } from "@modelcontextprotocol/ext-apps";
-import { DEMO, MAX_TEXT, parseScript, WordTracker, meterState } from "./core";
+import { MAX_TEXT, parseScript, WordTracker, meterState } from "./core";
 import { VoiceSession, browserSpeechAvailable, type Token } from "./voice";
 
+import { canonicalLocale, currentLocale, localizeDocument, number, setLocale, speechLocales, systemLocale, t, rtl } from "./i18n";
+import { demo } from "./demos";
 const el = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id)! as T;
 const draft = el<HTMLTextAreaElement>("draft"), mode = el<HTMLSelectElement>("mode"), provider = el<HTMLSelectElement>("provider");
+const language = el<HTMLSelectElement>("language"), customLanguage = el<HTMLInputElement>("custom-language");
+function speechLocale() { return canonicalLocale(language.value === "system" ? currentLocale() : language.value === "other" ? customLanguage.value : language.value); }
 const start = el<HTMLButtonElement>("start"), viewport = el("viewport"), scriptElement = el("script");
 let script = parseScript(""), tracker = new WordTracker(script), spans: HTMLElement[] = [];
 let running = false, starting = false, operation = 0, autoFrame = 0, lastMatchAt = -Infinity, connected = false, expanded = false;
-const app = new App({ name: "Teleprompter", version: "0.1.0" }, {}, { autoResize: true });
+const app = new App({ name: "Teleprompter", version: "0.2.0" }, {}, { autoResize: true });
 function status(text: string, error = false) { el("status").textContent = text; el("status").classList.toggle("error", error); }
-function stopped(message = "Pausiert.") {
+function stopped(message = t("Paused.")) {
   operation++; running = false; starting = false; cancelAnimationFrame(autoFrame);
-  voice.stop(); start.textContent = "Start"; start.disabled = false; status(message);
+  voice.stop(); language.disabled = customLanguage.disabled = false; start.textContent = t("Start"); start.disabled = false; status(message);
 }
 const voice = new VoiceSession({
   transcript(text, id) {
     tracker.consume(text, id);
     if (tracker.confidence > 0) lastMatchAt = performance.now();
     updateProgress();
-    if (tracker.cursor >= script.words.length - 1) stopped("Text vollständig gelesen.");
+    if (tracker.cursor >= script.words.length - 1) stopped(t("Script completed."));
   },
   level(rms, peak, recent) {
     const state = meterState(rms, peak, tracker.confidence, recent);
     el("meter-pointer").style.left = state.position + "%";
     el("meter").classList.toggle("neutral", !recent);
-    el("meter-label").textContent = running || starting ? state.label : "Mikrofon aus";
-    el("match-label").textContent = recent && performance.now() - lastMatchAt < 2000 ? state.matched ? "Text erkannt" : "Text unsicher" : "";
+    el("meter-label").textContent = running || starting ? state.label : t("Microphone off");
+    el("match-label").textContent = recent && performance.now() - lastMatchAt < 2000 ? state.matched ? t("Text matched") : t("Text uncertain") : "";
   },
   stopped(message) { stopped(message); status(message, true); }
 });
 function updateCount() {
-  const count = parseScript(draft.value).words.length;
-  el("word-count").textContent = count + " Wörter · ca. " + Math.ceil(count / 130) + " Min.";
+  const count = parseScript(draft.value, speechLocale()).words.length;
+  el("word-count").textContent = t("Words: {0} · about {1} min", number(count), number(Math.ceil(count / 130)));
   el<HTMLButtonElement>("read").disabled = count === 0;
 }
 function renderScript() {
@@ -57,7 +61,7 @@ function renderScript() {
 function updateProgress(smooth = true) {
   const next = Math.min(tracker.cursor + 1, script.words.length - 1);
   spans.forEach((span, i) => { span.classList.toggle("spoken", i <= tracker.cursor); span.classList.toggle("current", i === next && tracker.cursor < script.words.length - 1); });
-  el("sentence").textContent = "Satz " + ((script.words[next]?.sentence ?? 0) + 1) + " / " + script.sentenceStarts.length;
+  el("sentence").textContent = t("Sentence {0} / {1}", number((script.words[next]?.sentence ?? 0) + 1), number(script.sentenceStarts.length));
   el("progress-fill").style.width = (script.words.length ? (tracker.cursor + 1) / script.words.length * 100 : 0) + "%";
   const word = spans[next];
   if (word) {
@@ -67,10 +71,12 @@ function updateProgress(smooth = true) {
 }
 function loadReading() {
   stopped();
-  script = parseScript(draft.value); tracker = new WordTracker(script); lastMatchAt = -Infinity;
-  if (!script.words.length) { status("Füge einen Text mit gesprochenen Wörtern ein.", true); return; }
+  if (language.value === "other" && !canonicalLocale(customLanguage.value, "")) { status(t("Invalid language code."), true); return; }
+  script = parseScript(draft.value, speechLocale()); tracker = new WordTracker(script); lastMatchAt = -Infinity;
+  if (!script.words.length) { status(t("Paste a text with spoken words."), true); return; }
+  scriptElement.dir = rtl(script.locale) ? "rtl" : "ltr";
   renderScript(); el("editor").hidden = true; el("reading").hidden = false; updateProgress(false);
-  status("Bereit. Klicke auf ein Wort, um die Startposition zu wählen.");
+  status(t("Ready. Click a word to choose the start position."));
 }
 function seekSentence(delta: number) {
   const current = script.words[Math.min(tracker.cursor + 1, script.words.length - 1)]?.sentence ?? 0;
@@ -78,19 +84,20 @@ function seekSentence(delta: number) {
   updateProgress(false);
 }
 async function getToken(): Promise<Token> {
-  const result = await app.callServerTool({ name: "start_voice_session", arguments: {} });
-  if (result.isError) throw new Error(result.content.find(c => c.type === "text")?.text as string || "Sprachsitzung fehlgeschlagen.");
+  const result = await app.callServerTool({ name: "start_voice_session", arguments: { language: speechLocale(), uiLocale: currentLocale() } });
+  if (result.isError) throw new Error(result.content.find(c => c.type === "text")?.text as string || t("Voice session failed."));
   const token = result._meta?.voice as Token | undefined;
-  if (!token || typeof token.value !== "string" || typeof token.expiresAt !== "number") throw new Error("Dieser Host hat kein gültiges Sitzungstoken geliefert.");
+  if (!token || typeof token.value !== "string" || typeof token.expiresAt !== "number") throw new Error(t("The host did not provide a valid session token."));
   return token;
 }
 async function toggleStart() {
   if (running || starting) { stopped(); return; }
+  if (language.value === "other" && !canonicalLocale(customLanguage.value, "")) { status(t("Invalid language code."), true); return; }
   if (!script.words.length) return;
   if (tracker.cursor >= script.words.length - 1) tracker.seek(0);
   const currentOperation = ++operation;
   if (mode.value === "auto") {
-    running = true; start.textContent = "Pause"; status("Auto-Scroll läuft. Leertaste pausiert.");
+    running = true; start.textContent = t("Pause"); status(t("Auto-Scroll active. Space pauses."));
     let last = performance.now(), accumulated = 0;
     const tick = (now: number) => {
       if (!running || currentOperation !== operation) return;
@@ -99,28 +106,28 @@ async function toggleStart() {
       if (accumulated >= interval) {
         const steps = Math.floor(accumulated / interval); accumulated %= interval;
         tracker.seek(tracker.cursor + 1 + steps); updateProgress();
-        if (tracker.cursor >= script.words.length - 1) { stopped("Text vollständig gelesen."); return; }
+        if (tracker.cursor >= script.words.length - 1) { stopped(t("Script completed.")); return; }
       }
       autoFrame = requestAnimationFrame(tick);
     };
     autoFrame = requestAnimationFrame(tick); return;
   }
-  if (!connected) { status("Die Verbindung zum App-Host ist noch nicht bereit.", true); return; }
-  starting = true; start.textContent = "Abbrechen"; status("Mikrofon und Spracherkennung verbinden …");
+  if (!connected) { status(t("The app host is not connected yet."), true); return; }
+  starting = true; language.disabled = customLanguage.disabled = true; start.textContent = t("Cancel"); status(t("Connecting microphone and speech recognition …"));
   try {
-    await voice.start(provider.value === "openai" ? "openai" : "browser", getToken);
+    await voice.start(provider.value === "openai" ? "openai" : "browser", getToken, speechLocale());
     if (currentOperation !== operation) return;
-    starting = false; running = true; start.textContent = "Pause";
-    status("Sprache aktiv. Pausen halten den Text an.");
+    starting = false; running = true; start.textContent = t("Pause");
+    status(t("Speech active. Pauses hold the text."));
   } catch (error) {
     if (currentOperation !== operation) return;
     stopped();
     const denied = error instanceof DOMException && error.name === "NotAllowedError";
-    status(denied ? "Mikrofonzugriff wurde nicht erlaubt. Nutze Auto-Scroll oder erlaube das Mikrofon im Host." : error instanceof Error ? error.message : "Spracherkennung konnte nicht starten.", true);
+    status(denied ? t("Microphone access was denied. Use Auto-Scroll or allow the microphone in the host.") : error instanceof Error ? error.message : t("Could not start speech recognition."), true);
   }
 }
 el("read").onclick = loadReading;
-el("example").onclick = () => { draft.value = DEMO; updateCount(); };
+el("example").onclick = () => { draft.value = demo(speechLocale()); updateCount(); };
 draft.oninput = updateCount;
 el("edit").onclick = () => {
   stopped();
@@ -129,16 +136,16 @@ el("edit").onclick = () => {
   document.body.classList.remove("expanded"); expanded = false; draft.focus();
 };
 start.onclick = () => void toggleStart();
-el("reset").onclick = () => { stopped("Zurück am Anfang."); tracker.seek(0); updateProgress(false); };
+el("reset").onclick = () => { stopped(t("Back at the start.")); tracker.seek(0); updateProgress(false); };
 el("back").onclick = () => { stopped(); seekSentence(-1); };
 el("next").onclick = () => { stopped(); seekSentence(1); };
-scriptElement.onclick = event => { const target = (event.target as HTMLElement).closest<HTMLElement>("[data-index]"); if (target) { stopped("Startposition geändert."); tracker.seek(Number(target.dataset.index)); updateProgress(false); } };
+scriptElement.onclick = event => { const target = (event.target as HTMLElement).closest<HTMLElement>("[data-index]"); if (target) { stopped(t("Start position changed.")); tracker.seek(Number(target.dataset.index)); updateProgress(false); } };
 mode.onchange = () => { stopped(); el("provider-control").hidden = mode.value === "auto"; el("pace-control").hidden = mode.value !== "auto"; };
 provider.onchange = () => stopped();
 for (const id of ["font", "width", "pace"]) {
   el<HTMLInputElement>(id).oninput = () => {
     const value = el<HTMLInputElement>(id).value;
-    el(id + "-value").textContent = value + (id === "pace" ? " Wörter/min" : " px");
+    el(id + "-value").textContent = id === "pace" ? t("{0} words/min", number(Number(value))) : number(Number(value)) + " px";
     if (id !== "pace") { document.documentElement.style.setProperty(id === "font" ? "--font" : "--column", value + "px"); updateProgress(false); }
   };
 }
@@ -156,17 +163,19 @@ document.addEventListener("keydown", event => {
   else if (event.key === "ArrowLeft") { stopped(); seekSentence(-1); }
   else if (event.key === "Escape") stopped();
 });
-document.addEventListener("visibilitychange", () => { if (document.hidden && (running || starting)) stopped("Pausiert, weil die App nicht sichtbar ist."); });
+document.addEventListener("visibilitychange", () => { if (document.hidden && (running || starting)) stopped(t("Paused because the app is hidden.")); });
 window.addEventListener("pagehide", () => voice.stop());
 app.onteardown = async () => { stopped(); return {}; };
-app.ontoolcancelled = () => stopped("Der Aufruf wurde abgebrochen.");
+app.ontoolcancelled = () => stopped(t("The call was cancelled."));
 app.ontoolresult = result => {
-  const data = result._meta?.draft as { text?: unknown; title?: unknown } | undefined;
+  const data = result._meta?.draft as { text?: unknown; title?: unknown; language?: unknown } | undefined;
   if (typeof data?.text === "string") {
-    stopped(); draft.value = data.text.slice(0, MAX_TEXT);
+    stopped();
+    if (typeof data.language === "string") selectLanguage(canonicalLocale(data.language));
+    draft.value = data.text.slice(0, MAX_TEXT);
     if (typeof data.title === "string") el("title").textContent = data.title;
     el("editor").hidden = false; el("reading").hidden = true; updateCount();
-    status(draft.value ? "Text aus dem Chat übernommen. Bereit zum Lesen." : "Text einfügen und Lesemodus öffnen.");
+    status(draft.value ? t("Text received from chat. Ready to read.") : t("Paste text and open the reader."));
   }
   const settings = result._meta?.settings as { openaiEnabled?: boolean } | undefined;
   if (settings) {
@@ -174,12 +183,51 @@ app.ontoolresult = result => {
     if (settings.openaiEnabled) provider.value = "openai";
     else if (!browserSpeechAvailable()) {
       mode.value = "auto"; el("provider-control").hidden = true; el("pace-control").hidden = false;
-      status("Spracherkennung ist in diesem Host nicht verfügbar. Auto-Scroll ist bereit.");
+      status(t("Speech is unavailable in this host. Auto-Scroll is ready."));
     }
   }
 };
+function selectLanguage(locale: string) {
+  if (![...language.options].some(option => option.value === locale)) language.add(new Option(new Intl.DisplayNames([currentLocale()], { type: "language" }).of(locale) || locale, locale));
+  language.value = locale;
+}
+function refreshLocale(locale?: string) {
+  setLocale(locale);
+  localizeDocument();
+  const selected = language.value || "system";
+  const names = new Intl.DisplayNames([currentLocale()], { type: "language" });
+  language.replaceChildren(new Option(t("System language · {0}", names.of(currentLocale()) || currentLocale()), "system"));
+  for (const tag of speechLocales) language.add(new Option(names.of(tag) || tag, tag));
+  language.add(new Option(t("Other language code"), "other"));
+  if (!["system", "other"].includes(selected)) selectLanguage(selected); else language.value = selected;
+  for (const id of ["font", "width", "pace"]) {
+    const value = Number(el<HTMLInputElement>(id).value);
+    el(id + "-value").textContent = id === "pace" ? t("{0} words/min", number(value)) : number(value) + " px";
+  }
+  updateCount();
+  if (!el("reading").hidden && script.locale !== speechLocale()) {
+    stopped(t("Script language changed. Read from the beginning."));
+    script = parseScript(draft.value, speechLocale()); tracker = new WordTracker(script);
+    scriptElement.dir = rtl(script.locale) ? "rtl" : "ltr"; renderScript(); updateProgress(false);
+  }
+  start.textContent = running ? t("Pause") : starting ? t("Cancel") : t("Start");
+  el("connection").textContent = connected ? t("App connected") : t("Connecting …");
+}
+function changeLanguage() {
+  stopped(t("Script language changed. Read from the beginning."));
+  el("custom-language-control").hidden = language.value !== "other";
+  if (language.value === "other" && !canonicalLocale(customLanguage.value, "")) { status(t("Invalid language code."), true); return; }
+  updateCount();
+  if (!el("reading").hidden) loadReading();
+}
+language.onchange = changeLanguage;
+customLanguage.onchange = changeLanguage;
+window.addEventListener("languagechange", () => refreshLocale(app.getHostContext()?.locale));
+app.onhostcontextchanged = context => { if (context.locale) refreshLocale(context.locale); };
+refreshLocale();
 updateCount();
 try {
   await app.connect();
-  connected = true; el("connection").textContent = "App verbunden";
-} catch { el("connection").textContent = "Ohne App-Verbindung"; status("Die App-Verbindung ist nicht verfügbar. Auto-Scroll funktioniert weiterhin.", true); mode.value = "auto"; el("provider-control").hidden = true; el("pace-control").hidden = false; }
+  refreshLocale(app.getHostContext()?.locale);
+  connected = true; el("connection").textContent = t("App connected");
+} catch { el("connection").textContent = t("No app connection"); status(t("The app connection is unavailable. Auto-Scroll still works."), true); mode.value = "auto"; el("provider-control").hidden = true; el("pace-control").hidden = false; }

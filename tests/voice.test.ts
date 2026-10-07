@@ -51,7 +51,7 @@ test("host-denied microphone fails before capture or credential creation", async
   let microphoneCalls = 0, tokenCalls = 0;
   media = async () => { microphoneCalls++; return fakeStream(); };
   const voice = new VoiceSession(callbacks());
-  await expect(voice.start("openai", async () => { tokenCalls++; return token(); })).rejects.toThrow("keinen Mikrofonzugriff");
+  await expect(voice.start("openai", async () => { tokenCalls++; return token(); })).rejects.toThrow("does not allow microphone access");
   expect(microphoneCalls).toBe(0); expect(tokenCalls).toBe(0);
 });
 test("cancelling a pending microphone prompt stops the late stream", async () => {
@@ -86,4 +86,14 @@ test("cancelling token creation cannot create a late OpenAI connection", async (
   const pending = voice.start("openai", () => { requested(); return new Promise(resolve => { release = resolve; }); });
   await tokenRequested; voice.stop(); release(await token()); await pending;
   expect(stoppedTracks).toBe(1); expect(closedContexts).toBe(1);
+});
+
+test("browser recognition uses the selected regional speech locale", async () => {
+  const voice = new VoiceSession(callbacks());
+  await voice.start("browser", token, "en-GB");
+  expect(recognition!.lang).toBe("en-GB");
+  voice.stop();
+  await voice.start("browser", token, "fr-CA");
+  expect(recognition!.lang).toBe("fr-CA");
+  voice.stop();
 });

@@ -47,7 +47,7 @@ test("MCP resource is bundled and declares microphone and network domains", asyn
   const resource = result.contents[0]!;
   expect(resource.mimeType).toBe("text/html;profile=mcp-app");
   expect(resource._meta?.ui).toMatchObject({ permissions: { microphone: {} }, csp: { connectDomains: ["https://api.openai.com"], resourceDomains: [] } });
-  expect("text" in resource && resource.text).toContain("Dein Text. Dein Tempo.");
+  expect("text" in resource && resource.text).toContain("Your text. Your pace.");
   expect("text" in resource && resource.text.includes("/*__JS__*/")).toBe(false);
 });
 test("missing OpenAI configuration returns an actionable error", async () => {
@@ -118,4 +118,25 @@ test("credential creation has a bounded hourly budget", async () => {
   const tokens = new VoiceTokens("fake-test-key", mock, () => 1000);
   for (let i = 0; i < 12; i++) expect((await tokens.mint()).isError).toBeUndefined();
   expect((await tokens.mint()).isError).toBe(true);
+});
+
+test("MCP preserves an explicit script locale independently of the host UI", async () => {
+  const result = await client.callTool({ name: "open_teleprompter", arguments: { text: "Hello world.", language: "en-GB" } });
+  expect(result.structuredContent).toMatchObject({ wordCount: 2, language: "en-GB" });
+  expect(result._meta?.draft).toMatchObject({ text: "Hello world.", language: "en-GB" });
+  const invalid = await client.callTool({ name: "start_voice_session", arguments: { language: "not a locale" } });
+  expect(invalid.isError).toBe(true);
+});
+test("OpenAI session uses the selected language and localized safe failures", async () => {
+  let body: Record<string, unknown> | undefined;
+  const mock: Fetcher = async (_url, init) => { body = JSON.parse(String(init.body)); return new Response("private provider detail", { status: 403 }); };
+  const result = await new VoiceTokens("fake-test-key", mock).mint("fr-CA", "es-MX");
+  expect(body).toMatchObject({ session: { audio: { input: { transcription: { languages: ["fr"] } } } } });
+  expect(JSON.stringify(result)).toContain("OpenAI no pudo crear una sesión");
+  expect(JSON.stringify(result)).not.toContain("private provider detail");
+  expect(transcriptionSession("zh-TW").audio.input.transcription.languages).toEqual(["zh-tw"]);
+});
+test("local preview validates language metadata before credential creation", async () => {
+  const response = await fetch(url + "/preview/voice", { method: "POST", headers: { Origin: url, "Content-Type": "application/json" }, body: JSON.stringify({ language: "invalid tag" }) });
+  expect(response.status).toBe(400);
 });

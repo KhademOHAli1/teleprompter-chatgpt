@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/server";
-import { createMcpServer, promptResult } from "./mcp";
+import { createMcpServer, promptResult, localeSchema, VERSION } from "./mcp";
 import { VoiceTokens } from "./tokens";
 import { timingSafeEqual } from "node:crypto";
 
@@ -32,7 +32,7 @@ export async function startServer(config: Config) {
       if (!allowedHosts.has(url.hostname)) return fail(403, "Invalid host");
       const origin = request.headers.get("Origin");
       if (origin && origin !== url.origin && origin !== config.publicOrigin) return fail(403, "Invalid origin");
-      if (url.pathname === "/health") return Response.json({ status: "ok", version: "0.1.0" });
+      if (url.pathname === "/health") return Response.json({ status: "ok", version: VERSION });
       if (url.pathname === "/mcp") {
         if (!authorize(request.headers.get("Authorization"), config.authToken)) return fail(401, "Bearer authentication required");
         const mcp = createMcpServer({ html, tokens, widgetOrigin: config.widgetOrigin });
@@ -45,7 +45,10 @@ export async function startServer(config: Config) {
       if (!loopback(config.host) || !loopback(url.hostname)) return fail(404, "Not found");
       if (url.pathname === "/preview/voice" && request.method === "POST") {
         if (origin !== url.origin) return fail(403, "Same-origin POST required");
-        return Response.json(await tokens.mint(), { headers: { "Cache-Control": "no-store" } });
+        const body = await request.json().catch(() => ({})) as { language?: unknown; uiLocale?: unknown };
+        const language = localeSchema.safeParse(body.language ?? "en-US"), uiLocale = localeSchema.safeParse(body.uiLocale ?? "en-US");
+        if (!language.success || !uiLocale.success) return fail(400, "Invalid language code");
+        return Response.json(await tokens.mint(language.data, uiLocale.data), { headers: { "Cache-Control": "no-store" } });
       }
       if (url.pathname === "/preview/initial" && request.method === "GET") return Response.json(promptResult("", "Teleprompter", tokens.enabled));
       const files: Record<string, string> = { "/": "preview.html", "/widget": "widget.html", "/preview.js": "preview.js" };

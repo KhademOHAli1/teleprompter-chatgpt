@@ -1,48 +1,48 @@
 <!doctype html>
-<html lang="de">
+<html lang="en">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Teleprompter</title>
-  <style>/*__CSS__*/</style>
+  <title>Teleprompter</title><style>/*__CSS__*/</style>
 </head>
 <body>
-  <main id="app">
-    <header>
-      <div class="identity"><span class="logo" aria-hidden="true">T<span>·</span></span><div><h1 id="title">Teleprompter</h1><p>Dein Text. Dein Tempo.</p></div></div>
-      <span id="connection" class="badge">Verbinde …</span>
-    </header>
-    <section id="editor" aria-label="Text vorbereiten">
-      <div class="section-top"><label for="draft">Dein Skript</label><button id="example" class="text-button">Beispiel laden</button></div>
-      <textarea id="draft" maxlength="50000" placeholder="Füge deinen Text hier ein.&#10;&#10;[Regieanweisungen in eckigen Klammern werden nicht mitgelesen.]"></textarea>
-      <div class="editor-bottom"><span id="word-count">0 Wörter</span><button id="read" class="primary">Lesemodus öffnen <span aria-hidden="true">→</span></button></div>
-      <p class="hint">Hier eingefügter Text wird während dieser Sitzung in der App gehalten. Er wird nicht automatisch an den Chat zurückgesendet.</p>
-    </section>
-    <section id="reading" hidden aria-label="Lesemodus">
-      <div class="reader-top"><span id="sentence">Satz 1</span><button id="edit" class="text-button">Text bearbeiten</button></div>
-      <div id="viewport" tabindex="0" aria-label="Teleprompter-Text. Klicke auf ein Wort, um dort fortzufahren.">
-        <div class="focus-line" aria-hidden="true"></div><div id="script"></div>
-      </div>
-      <div class="progress"><div id="progress-fill"></div></div>
-      <div class="transport">
-        <div class="step-buttons"><button id="back" aria-label="Vorheriger Satz">←</button><button id="reset" aria-label="Zum Anfang">↺</button><button id="next" aria-label="Nächster Satz">→</button></div>
-        <button id="start" class="primary">Start</button><button id="expand" aria-label="Ansicht vergrößern">⛶</button>
-      </div>
-    </section>
-    <div class="settings">
-      <label>Steuerung<select id="mode"><option value="voice">Sprache folgen</option><option value="auto">Auto-Scroll</option></select></label>
-      <label id="provider-control">Spracherkennung<select id="provider"><option value="browser">Browser</option><option value="openai" disabled>OpenAI</option></select></label>
-      <label id="pace-control" hidden>Tempo <span id="pace-value">130 Wörter/min</span><input id="pace" type="range" min="60" max="220" value="130"></label>
-      <label>Schrift <span id="font-value">38 px</span><input id="font" type="range" min="24" max="64" value="38"></label>
-      <label>Textbreite <span id="width-value">440 px</span><input id="width" type="range" min="280" max="640" value="440"></label>
+<main id="app">
+  <header>
+    <div class="identity"><span class="logo" aria-hidden="true">T<span>·</span></span><div><h1 id="title">Teleprompter</h1><p data-i18n="Your text. Your pace.">Your text. Your pace.</p></div></div>
+    <span id="connection" class="badge" data-i18n="Connecting …">Connecting …</span>
+  </header>
+  <section id="editor" data-i18n-aria-label="Prepare text" aria-label="Prepare text">
+    <div class="section-top"><label for="draft" data-i18n="Your script">Your script</label><button id="example" class="text-button" data-i18n="Load example">Load example</button></div>
+    <textarea id="draft" dir="auto" maxlength="50000" data-i18n-placeholder="Paste your text here.&#10;&#10;[Stage directions in brackets are not read aloud.]" placeholder="Paste your text here."></textarea>
+    <div class="editor-bottom"><span id="word-count">Words: 0</span><button id="read" class="primary" data-i18n="Open reader">Open reader</button></div>
+    <p class="hint" data-i18n="Text pasted here stays in the app for this session. It is not automatically sent back to the chat.">Text pasted here stays in the app for this session. It is not automatically sent back to the chat.</p>
+  </section>
+  <section id="reading" hidden data-i18n-aria-label="Reader" aria-label="Reader">
+    <div class="reader-top"><span id="sentence">Sentence 1</span><button id="edit" class="text-button" data-i18n="Edit text">Edit text</button></div>
+    <div id="viewport" tabindex="0" data-i18n-aria-label="Teleprompter text. Click a word to resume there." aria-label="Teleprompter text. Click a word to resume there.">
+      <div class="focus-line" aria-hidden="true"></div><div id="script"></div>
     </div>
-    <div class="voice-meter" aria-label="Mikrofonpegel">
-      <div class="meter-top"><span id="meter-label">Mikrofon aus</span><span id="match-label"></span></div>
-      <div id="meter" class="meter neutral"><i id="meter-pointer"></i></div>
-      <p class="hint">Die Anzeige misst Pegel und Übereinstimmung mit dem Text. Sie bewertet keine Aussprache.</p>
+    <div class="progress"><div id="progress-fill"></div></div>
+    <div class="transport">
+      <div class="step-buttons"><button id="back" data-i18n-aria-label="Previous sentence" aria-label="Previous sentence">←</button><button id="reset" data-i18n-aria-label="Back to start" aria-label="Back to start">↺</button><button id="next" data-i18n-aria-label="Next sentence" aria-label="Next sentence">→</button></div>
+      <button id="start" class="primary" data-i18n="Start">Start</button><button id="expand" data-i18n-aria-label="Expand view" aria-label="Expand view">⛶</button>
     </div>
-    <p id="status" role="status">Text einfügen und Lesemodus öffnen.</p>
-    <p id="privacy" class="hint">Browser-Sprache kann Audio an den Dienst deines Browsers senden. OpenAI-Sprache sendet Mikrofon-Audio an OpenAI und nutzt das API-Konto des App-Betreibers.</p>
-  </main>
-  <script type="module">/*__JS__*/</script>
-</body>
-</html>
+  </section>
+  <div class="settings">
+    <label><span data-i18n="Control">Control</span><select id="mode"><option value="voice" data-i18n="Follow speech">Follow speech</option><option value="auto" data-i18n="Auto-Scroll">Auto-Scroll</option></select></label>
+    <label id="provider-control"><span data-i18n="Speech recognition">Speech recognition</span><select id="provider"><option value="browser" data-i18n="Browser">Browser</option><option value="openai" disabled>OpenAI</option></select></label>
+    <label><span data-i18n="Speech language">Speech language</span><select id="language"></select></label>
+    <label id="custom-language-control" hidden><span data-i18n="Language code (BCP 47)">Language code (BCP 47)</span><input id="custom-language" type="text" maxlength="100" placeholder="en-US" spellcheck="false" dir="ltr"></label>
+    <label id="pace-control" hidden><span data-i18n="Pace">Pace</span> <output id="pace-value">130 words/min</output><input id="pace" type="range" min="60" max="220" value="130"></label>
+    <label><span data-i18n="Font">Font</span> <output id="font-value">38 px</output><input id="font" type="range" min="24" max="64" value="38"></label>
+    <label><span data-i18n="Text width">Text width</span> <output id="width-value">440 px</output><input id="width" type="range" min="280" max="640" value="440"></label>
+  </div>
+  <div class="voice-meter" data-i18n-aria-label="Microphone level" aria-label="Microphone level">
+    <div class="meter-top"><span id="meter-label" data-i18n="Microphone off">Microphone off</span><span id="match-label"></span></div>
+    <div id="meter" class="meter neutral"><i id="meter-pointer"></i></div>
+    <p class="hint" data-i18n="The meter shows level and script matches. It does not assess pronunciation.">The meter shows level and script matches. It does not assess pronunciation.</p>
+  </div>
+  <p id="status" role="status" data-i18n="Paste text and open the reader.">Paste text and open the reader.</p>
+  <p id="privacy" class="hint" data-i18n="Browser speech may send audio to your browser's service. OpenAI speech sends microphone audio to OpenAI using the operator's API account.">Browser speech may send audio to your browser's service. OpenAI speech sends microphone audio to OpenAI using the operator's API account.</p>
+</main>
+<script type="module">/*__JS__*/</script>
+</body></html>

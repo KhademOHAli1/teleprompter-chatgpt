@@ -1,10 +1,22 @@
 # Teleprompter for ChatGPT and Codex
 
-A small German teleprompter implemented as an MCP App. An assistant can open
+A small multilingual teleprompter implemented as an MCP App. An assistant can open
 your script in a centered reader, and you can also paste text directly into
 the embedded UI. Licensed under MIT.
 
 [Deutsche Anleitung](README.de.md) · [Privacy](docs/PRIVACY.md) · [Validation](docs/VALIDATION.md)
+
+## Languages
+
+The interface follows the macOS app language or the MCP host/browser locale.
+English, German, French and Spanish translations are included; other interface
+languages fall back to English. The **Speech language** setting is independent
+of the interface language and defaults to the system/host language.
+
+The script is never translated. Select its language before starting to read.
+Available recognition languages depend on the selected provider. Chinese and
+Japanese use word segmentation; right-to-left scripts keep their text direction.
+See [localization](docs/LOCALIZATION.md) for supported behavior and contribution instructions.
 
 ## Run locally
 
@@ -24,7 +36,7 @@ served to real hosts. It is a development host, not ChatGPT itself.
 
 - Exact script transfer from the chat, or direct paste into the app.
 - Narrow centered text, adjustable font and column width.
-- German word alignment using interim transcription results.
+- Locale-aware word segmentation and alignment using interim transcription results.
 - Manual sentence navigation, word selection, pause and Auto-Scroll.
 - Audio level and script-match indicators.
 - Stage directions in square brackets remain visible and do not advance voice tracking.
@@ -77,7 +89,7 @@ in its provider menu. No permanent key is entered in the widget.
 
 The server mints a token with a 60-second connection window. The browser
 connects directly to OpenAI over WebRTC using **gpt-live-transcribe**,
-German language hints and the **minimal** delay setting. Client-side silence
+selected-language hints and the **minimal** delay setting. Client-side silence
 detection commits turns; continuous turns are bounded to eight seconds.
 Sessions stop after 30 minutes and may be restarted. Token creation is limited
 to 12 attempts per hour per server instance.

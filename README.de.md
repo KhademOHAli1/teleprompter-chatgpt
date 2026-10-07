@@ -73,3 +73,12 @@ funktioniert Auto-Scroll weiterhin.
 
 erstellt ein Quellcode-ZIP neben dem Projekt. Private Texte, API-Schlüssel,
 Abhängigkeiten und erzeugte Builds werden nicht eingepackt.
+
+## Sprachen
+
+Die Oberfläche folgt der App-Sprache in macOS beziehungsweise der Sprache des
+MCP-Hosts oder Browsers. Englisch, Deutsch, Französisch und Spanisch sind
+enthalten; für andere Oberflächensprachen wird Englisch verwendet. Die
+Skriptsprache lässt sich unabhängig davon auswählen. Der Text wird nicht
+übersetzt. Die verfügbaren Erkennungssprachen hängen vom Anbieter ab.
+Weitere Informationen: [Lokalisierung](docs/LOCALIZATION.md).
