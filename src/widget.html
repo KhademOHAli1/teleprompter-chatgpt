@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Teleprompter</title>
+  <style>/*__CSS__*/</style>
+</head>
+<body>
+  <main id="app">
+    <header>
+      <div class="identity"><span class="logo" aria-hidden="true">T<span>·</span></span><div><h1 id="title">Teleprompter</h1><p>Dein Text. Dein Tempo.</p></div></div>
+      <span id="connection" class="badge">Verbinde …</span>
+    </header>
+    <section id="editor" aria-label="Text vorbereiten">
+      <div class="section-top"><label for="draft">Dein Skript</label><button id="example" class="text-button">Beispiel laden</button></div>
+      <textarea id="draft" maxlength="50000" placeholder="Füge deinen Text hier ein.&#10;&#10;[Regieanweisungen in eckigen Klammern werden nicht mitgelesen.]"></textarea>
+      <div class="editor-bottom"><span id="word-count">0 Wörter</span><button id="read" class="primary">Lesemodus öffnen <span aria-hidden="true">→</span></button></div>
+      <p class="hint">Hier eingefügter Text wird während dieser Sitzung in der App gehalten. Er wird nicht automatisch an den Chat zurückgesendet.</p>
+    </section>
+    <section id="reading" hidden aria-label="Lesemodus">
+      <div class="reader-top"><span id="sentence">Satz 1</span><button id="edit" class="text-button">Text bearbeiten</button></div>
+      <div id="viewport" tabindex="0" aria-label="Teleprompter-Text. Klicke auf ein Wort, um dort fortzufahren.">
+        <div class="focus-line" aria-hidden="true"></div><div id="script"></div>
+      </div>
+      <div class="progress"><div id="progress-fill"></div></div>
+      <div class="transport">
+        <div class="step-buttons"><button id="back" aria-label="Vorheriger Satz">←</button><button id="reset" aria-label="Zum Anfang">↺</button><button id="next" aria-label="Nächster Satz">→</button></div>
+        <button id="start" class="primary">Start</button><button id="expand" aria-label="Ansicht vergrößern">⛶</button>
+      </div>
+    </section>
+    <div class="settings">
+      <label>Steuerung<select id="mode"><option value="voice">Sprache folgen</option><option value="auto">Auto-Scroll</option></select></label>
+      <label id="provider-control">Spracherkennung<select id="provider"><option value="browser">Browser</option><option value="openai" disabled>OpenAI</option></select></label>
+      <label id="pace-control" hidden>Tempo <span id="pace-value">130 Wörter/min</span><input id="pace" type="range" min="60" max="220" value="130"></label>
+      <label>Schrift <span id="font-value">38 px</span><input id="font" type="range" min="24" max="64" value="38"></label>
+      <label>Textbreite <span id="width-value">440 px</span><input id="width" type="range" min="280" max="640" value="440"></label>
+    </div>
+    <div class="voice-meter" aria-label="Mikrofonpegel">
+      <div class="meter-top"><span id="meter-label">Mikrofon aus</span><span id="match-label"></span></div>
+      <div id="meter" class="meter neutral"><i id="meter-pointer"></i></div>
+      <p class="hint">Die Anzeige misst Pegel und Übereinstimmung mit dem Text. Sie bewertet keine Aussprache.</p>
+    </div>
+    <p id="status" role="status">Text einfügen und Lesemodus öffnen.</p>
+    <p id="privacy" class="hint">Browser-Sprache kann Audio an den Dienst deines Browsers senden. OpenAI-Sprache sendet Mikrofon-Audio an OpenAI und nutzt das API-Konto des App-Betreibers.</p>
+  </main>
+  <script type="module">/*__JS__*/</script>
+</body>
+</html>
